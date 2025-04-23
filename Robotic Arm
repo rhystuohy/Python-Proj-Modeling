@@ -48,8 +48,6 @@ def plot_two_link(theta_deg, elev_deg, phi_deg, target=None):
     ax.plot([0,0],[0,0],[-L,L],'k-',lw=0.5)
     ax.quiver(0,0,0,*v1,length=1,normalize=True,color='red')
     ax.quiver(*j1,*v2,length=1,normalize=True,color='red')
-    ax.scatter(*j1,s=50,color='red',label='v1 tip')
-    ax.scatter(*tip,s=50,color='red',label='v2 tip')
 
     if target is not None:
         P = np.array(target)
@@ -62,8 +60,6 @@ def plot_two_link(theta_deg, elev_deg, phi_deg, target=None):
             j1ik = v1ik; tipik = v1ik+v2ik
             ax.quiver(0,0,0,*v1ik,length=1,normalize=True,color='blue',linestyle='--')
             ax.quiver(*j1ik,*v2ik,length=1,normalize=True,color='green',linestyle='--')
-            ax.scatter(*j1ik,s=50,color='blue')
-            ax.scatter(*tipik,s=50,color='green')
             print(f"IK angles → θ={t2:.1f}°, α={e2:.1f}°, φ={p2:.1f}°")
         else:
             print("Target unreachable")
