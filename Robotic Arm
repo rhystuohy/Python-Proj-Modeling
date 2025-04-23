@@ -1,49 +1,88 @@
 %matplotlib inline
-
 import numpy as np
 import matplotlib.pyplot as plt
-import ipywidgets as widgets
-from IPython.display import clear_output
 
-def compute_vectors(theta, phi):
-    """θ = azimuth in xy-plane (rad), φ = tilt in (v1,z) plane (rad)."""
-    varm1 = np.array([np.cos(theta), np.sin(theta), 0.0])
-    varm2 = np.cos(phi)*varm1 + np.sin(phi)*np.array([0.0,0.0,1.0])
-    return varm1, varm2
+def sph_to_cart(theta, elev):
+    return np.array([
+        np.cos(elev)*np.cos(theta),
+        np.cos(elev)*np.sin(theta),
+        np.sin(elev)
+    ])
 
-def update(theta_deg, phi_deg):
-    """Clear previous output and draw new 3D quivers."""
-    clear_output(wait=True)
-    θ = np.deg2rad(theta_deg)
-    φ = np.deg2rad(phi_deg)
-    varm1, varm2 = compute_vectors(θ, φ)
-    
+def compute_v2(v1, phi):
+    return np.cos(phi)*v1 + np.sin(phi)*np.array([0.0,0.0,1.0])
+
+def solve_ik(P):
+    l1 = l2 = 1.0
+    r = np.linalg.norm(P)
+    if not (abs(l1-l2) <= r <= l1+l2): 
+        return None
+    ex = P/r
+    ez = np.cross(ex,[0,0,1.0])
+    if np.linalg.norm(ez)<1e-6:
+        ez = np.array([1,0,0])
+    else:
+        ez /= np.linalg.norm(ez)
+    ey = np.cross(ez,ex)
+    cos_a1 = (l1**2 + r**2 - l2**2)/(2*l1*r)
+    a1 = np.arccos(np.clip(cos_a1,-1,1))
+    v1 = np.cos(a1)*ex + np.sin(a1)*ey
+    v2 = (P - v1)/np.linalg.norm(P - v1)
+    θ = np.degrees(np.arctan2(v1[1],v1[0])) % 360
+    α = np.degrees(np.arcsin(v1[2]))
+    φ = np.degrees(np.arccos(np.clip(np.dot(v1,v2),-1,1)))
+    return θ, α, φ
+
+def plot_two_link(theta_deg, elev_deg, phi_deg, target=None):
+    θ, α, φ = np.deg2rad([theta_deg, elev_deg, phi_deg])
+    v1 = sph_to_cart(θ, α)
+    v2 = compute_v2(v1, φ)
+    j1 = v1
+    tip = v1 + v2
+
     fig = plt.figure(figsize=(6,6))
     ax  = fig.add_subplot(111, projection='3d')
-
-    L = 1.5
-    # draw axes
+    L = 2
     ax.plot([-L,L],[0,0],[0,0],'k-',lw=0.5)
     ax.plot([0,0],[-L,L],[0,0],'k-',lw=0.5)
     ax.plot([0,0],[0,0],[-L,L],'k-',lw=0.5)
+    ax.quiver(0,0,0,*v1,length=1,normalize=True,color='red')
+    ax.quiver(*j1,*v2,length=1,normalize=True,color='red')
+    ax.scatter(*j1,s=50,color='red',label='v1 tip')
+    ax.scatter(*tip,s=50,color='red',label='v2 tip')
 
-    # draw v1 and v2
-    ax.quiver(0,0,0,*varm1,length=1,normalize=True,color='r',label='v1')
-    ax.quiver(*varm1,*varm2,length=1,normalize=True,color='b',label='v2')
+    if target is not None:
+        P = np.array(target)
+        sol = solve_ik(P)
+        ax.scatter(*P,s=20,marker='X',color='green',label='Target')
+        if sol:
+            t2,e2,p2 = sol
+            v1ik = sph_to_cart(*np.deg2rad([t2,e2]))
+            v2ik = compute_v2(v1ik,np.deg2rad(p2))
+            j1ik = v1ik; tipik = v1ik+v2ik
+            ax.quiver(0,0,0,*v1ik,length=1,normalize=True,color='blue',linestyle='--')
+            ax.quiver(*j1ik,*v2ik,length=1,normalize=True,color='green',linestyle='--')
+            ax.scatter(*j1ik,s=50,color='blue')
+            ax.scatter(*tipik,s=50,color='green')
+            print(f"IK angles → θ={t2:.1f}°, α={e2:.1f}°, φ={p2:.1f}°")
+        else:
+            print("Target unreachable")
 
     ax.set_xlim(-L,L); ax.set_ylim(-L,L); ax.set_zlim(-L,L)
     ax.set_box_aspect((1,1,1))
     ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
-    ax.set_title(f'θ={theta_deg:.0f}°, φ={phi_deg:.0f}°')
-    ax.legend()
-    plt.show()
+    ax.legend(); plt.show()
 
-# 2) Create sliders and link them
-theta_slider = widgets.FloatSlider(value=0, min=-180, max=180, step=1, description='θ (deg)')
-phi_slider   = widgets.FloatSlider(value=0, min=-180, max=180, step=1, description='φ (deg)')
-
-widgets.interact(
-    update,
-    theta_deg=theta_slider,
-    phi_deg=phi_slider
-)
+mode = input("Type A to input manual angles, Type B to give point in space: ").strip().upper()
+if mode == 'A':
+    th = float(input("θ (deg): "))
+    el = float(input("α (deg): "))
+    ph = float(input("φ (deg): "))
+    plot_two_link(th, el, ph)
+elif mode == 'B':
+    x = float(input("Target X: "))
+    y = float(input("Target Y: "))
+    z = float(input("Target Z: "))
+    plot_two_link(0, 0, 0, target=(x, y, z))
+else:
+    print("Invalid mode")
