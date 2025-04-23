@@ -1,41 +1,49 @@
+%matplotlib inline
+
 import numpy as np
 import matplotlib.pyplot as plt
+import ipywidgets as widgets
+from IPython.display import clear_output
 
-# --- PARAMETERS (radians) ---
-theta = np.deg2rad(45)   # azimuth of v1 in xy-plane
-phi   = np.deg2rad(60)   # angle of v2 in the (v1,z) plane
+def compute_vectors(theta, phi):
+    """θ = azimuth in xy-plane (rad), φ = tilt in (v1,z) plane (rad)."""
+    varm1 = np.array([np.cos(theta), np.sin(theta), 0.0])
+    varm2 = np.cos(phi)*varm1 + np.sin(phi)*np.array([0.0,0.0,1.0])
+    return varm1, varm2
 
-# --- DEFINE UNIT VECTORS ---
-v1 = np.array([np.cos(theta), np.sin(theta), 0.0])
-v2 = np.cos(phi) * v1 + np.sin(phi) * np.array([0.0, 0.0, 1.0])
+def update(theta_deg, phi_deg):
+    """Clear previous output and draw new 3D quivers."""
+    clear_output(wait=True)
+    θ = np.deg2rad(theta_deg)
+    φ = np.deg2rad(phi_deg)
+    varm1, varm2 = compute_vectors(θ, φ)
+    
+    fig = plt.figure(figsize=(6,6))
+    ax  = fig.add_subplot(111, projection='3d')
 
-# --- PLOT SETUP ---
-fig = plt.figure(figsize=(6,6))
-ax  = fig.add_subplot(111, projection='3d')
+    L = 1.5
+    # draw axes
+    ax.plot([-L,L],[0,0],[0,0],'k-',lw=0.5)
+    ax.plot([0,0],[-L,L],[0,0],'k-',lw=0.5)
+    ax.plot([0,0],[0,0],[-L,L],'k-',lw=0.5)
 
-# draw axes
-ax.plot([ -1.5, 1.5], [0,0], [0,0], 'k-', linewidth=0.5)
-ax.plot([0,0], [ -1.5, 1.5], [0,0], 'k-', linewidth=0.5)
-ax.plot([0,0], [0,0], [ -1.5, 1.5], 'k-', linewidth=0.5)
+    # draw v1 and v2
+    ax.quiver(0,0,0,*varm1,length=1,normalize=True,color='r',label='v1')
+    ax.quiver(*varm1,*varm2,length=1,normalize=True,color='b',label='v2')
 
-# draw v1 from origin
-ax.quiver(0, 0, 0,
-          v1[0], v1[1], v1[2],
-          length=1.0, normalize=True, color='r', linewidth=2, label='v1')
+    ax.set_xlim(-L,L); ax.set_ylim(-L,L); ax.set_zlim(-L,L)
+    ax.set_box_aspect((1,1,1))
+    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+    ax.set_title(f'θ={theta_deg:.0f}°, φ={phi_deg:.0f}°')
+    ax.legend()
+    plt.show()
 
-# draw v2 from tip of v1
-ax.quiver(v1[0], v1[1], v1[2],
-          v2[0], v2[1], v2[2],
-          length=1.0, normalize=True, color='g', linewidth=2, label='v2')
+# 2) Create sliders and link them
+theta_slider = widgets.FloatSlider(value=0, min=-180, max=180, step=1, description='θ (deg)')
+phi_slider   = widgets.FloatSlider(value=0, min=-180, max=180, step=1, description='φ (deg)')
 
-# cosmetics
-ax.set_xlim(-1.5, 1.5)
-ax.set_ylim(-1.5, 1.5)
-ax.set_zlim(-1.5, 1.5)
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-ax.set_box_aspect((1,1,1))
-ax.legend()
-plt.title('Two Unit Vectors: v1 in xy-plane, v2 in (v1–z) plane')
-plt.show()
+widgets.interact(
+    update,
+    theta_deg=theta_slider,
+    phi_deg=phi_slider
+)
